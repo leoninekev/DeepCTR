@@ -8,17 +8,17 @@ Reference:
 """
 import tensorflow as tf
 
-from tensorflow.keras.layers import Dense
+#from tensorflow.keras.layers import Dense
 
-from ..inputs import build_input_features
-#from ..layers.core import PredictionLayer, DNN
-#from ..layers.interaction import BiInteractionPooling
-#from ..layers.utils import concat_fun
+from ..inputs import build_input_features, input_from_feature_columns
+#from ..layers.core import PredictionLayer
+from ..layers.interaction import FM
+from ..layers.utils import concat_fun
 
 
-def SVD(feature_columns, num_factors=100,
+def SVD(feature_columns, embedding_size=100,
         l2_reg_embedding=1e-5, l2_reg_linear=1e-5, l2_reg_dnn=0, init_std=0.0001, seed=1024, bi_dropout=0,
-        dnn_dropout=0, act_func='sigmoid', task='binary'):
+        dnn_dropout=0):#, act_func='sigmoid', task='binary'):
     """Instantiates the Neural Factorization Machine architecture.
 
     :param feature_columns: An iterable containing all the sparse features used by model.
@@ -39,20 +39,20 @@ def SVD(feature_columns, num_factors=100,
 
     input_layers = list(features.values())
 
+    sparse_embedding_list, _ = input_from_feature_columns(features,feature_columns, embedding_size, l2_reg_embedding, init_std, seed)
     
-    hid_layer_1= Dense(num_factors)(input_layers[0])
-    hid_layer_2= Dense(num_factors)(input_layers[1])
-    
-    merge_layer = tf.keras.layers.dot([hid_layer_1, hid_layer_2], axes=1)
-    if task=='binary':
-        act_func = 'sigmoid'
-        n_last = 1
-    elif task=='multiclass':
-        act_func= 'softmax'
-        n_last = 5
+    fm_input = concat_fun(sparse_embedding_list, axis=1)
+    fm_logit = FM()(fm_input)
 
-    predictions = Dense(n_last, activation=act_func)(merge_layer)
+    #if task=='binary':
+    #    act_func = 'sigmoid'
+    #    n_last = 1
+    #elif task=='multiclass':
+    #    act_func= 'softmax'
+    #    n_last = 5
+
+    #predictions = Dense(n_last, activation=act_func)(merge_layer)
     
-    model = tf.keras.models.Model(inputs=input_layers, outputs=predictions)
+    model = tf.keras.models.Model(inputs=input_layers, outputs=fm_logit)
     
     return model
